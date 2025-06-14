@@ -3,21 +3,19 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from db import SessionLocal
-from repository import save_question_set, get_by_hash_key
+from repository import save_question_set, get_by_hash_key, save_survey_result
 from openai import OpenAI
 import os
 import ast
-from dotenv import load_dotenv
 import hashlib
-from repository import save_survey_result
 
 app = FastAPI()
 
-# Load environment variables
-load_dotenv(dotenv_path="venv/.env")
+# OpenAI setup
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
+# DB session helper
 def get_db():
     db = SessionLocal()
     try:
@@ -80,7 +78,6 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
         goal2 = params.get("goal2", "").strip()
         goal3 = params.get("goal3", "").strip()
 
-        # Robustly parse questions list
         raw_questions = params.get("questions_list", [])
         if isinstance(raw_questions, str):
             try:
@@ -94,7 +91,6 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
         else:
             questions_list = []
 
-        # Robustly parse responses list
         raw_responses = params.get("responses_list", [])
         if isinstance(raw_responses, str):
             try:
@@ -108,10 +104,8 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
         else:
             responses_list = []
 
-        # Read user input
         user_response = params.get("user_response") or params.get("any")
 
-        # CASE 1: No questions yet — generate
         if not questions_list and role and goal1 and goal2 and goal3:
             goals = [goal1, goal2, goal3]
             normalized_goals = normalize_goals_via_llm(goals)
@@ -147,7 +141,6 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
                 }
             }
 
-        # CASE 2: Ongoing survey
         elif questions_list:
             if user_response is None or str(user_response).strip() == "":
                 return {
@@ -159,7 +152,6 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
             responses_list.append(str(user_response).strip())
             current_index = len(responses_list)
 
-            # Ask next question if more remain
             if current_index < len(questions_list):
                 return {
                     "sessionInfo": {
@@ -175,7 +167,6 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
                     }
                 }
 
-            # All done — save responses
             else:
                 session_id = session.get("session", "").split("/")[-1]
                 save_survey_result(
@@ -194,7 +185,6 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
                     }
                 }
 
-        # CASE 3: Missing required startup info
         return {
             "fulfillment_response": {
                 "messages": [{"text": {"text": ["I will need you to provide your role and three strategic goals"]}}]
@@ -212,3 +202,7 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
             }
         )
 
+# health check route
+@app.get("/")
+def root():
+    return {"message": "Survey chatbot backend is live!"}
