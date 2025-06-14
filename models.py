@@ -1,7 +1,8 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime
 from datetime import datetime
 import uuid
-from db import Base
+
+from db import Base, engine
 
 class QuestionSet(Base):
     __tablename__ = "question_sets"
@@ -13,19 +14,23 @@ class QuestionSet(Base):
     questions_json = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-from sqlalchemy import Column, Integer, String, DateTime, Text
-from datetime import datetime
-from db import Base
 
 class SurveyResponse(Base):
     __tablename__ = "survey_responses"
 
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String(100), index=True) # keep checking for max length
+    session_id = Column(String(100), index=True)
     role = Column(String)
     goal1 = Column(String)
     goal2 = Column(String)
     goal3 = Column(String)
-    responses = Column(Text)  # Store as newline-separated string
+    responses = Column(Text)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
+
+def initialize_database():
+    Base.metadata.create_all(bind=engine)
+
+
+if __name__ == "__main__":
+    initialize_database()
