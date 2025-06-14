@@ -8,6 +8,8 @@ from openai import OpenAI
 import os
 import ast
 import hashlib
+from models import Base
+from db import engine
 
 app = FastAPI()
 
@@ -206,3 +208,7 @@ async def dialogflow_webhook(request: Request, db: Session = Depends(get_db)):
 @app.get("/")
 def root():
     return {"message": "Survey chatbot backend is live!"}
+
+@app.on_event("startup")
+def startup_event():
+    Base.metadata.create_all(bind=engine)
